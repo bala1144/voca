@@ -1,0 +1,10 @@
+__pycache__/
+flame/
+ds_graph/
+model/
+training/
+voca_diff_method_comp/
+animation_output/
+animation_visualization/
+pretrained_model/
+mesh/

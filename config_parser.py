@@ -21,15 +21,15 @@ import configparser
 def set_default_paramters(config):
     config.add_section('Input Output')
     config.set('Input Output', 'checkpoint_dir', './training')
-    config.set('Input Output', 'expression_basis_fname', './training_data/init_expression_basis.npy')
+    config.set('Input Output', 'expression_basis_fname', 'projects/dataset/voca/init_expression_basis.npy')
     config.set('Input Output', 'template_fname', './template/FLAME_sample.ply')
     config.set('Input Output', 'deepspeech_graph_fname', './ds_graph/output_graph.pb')
 
-    config.set('Input Output', 'verts_mmaps_path', './training_data/data_verts.npy')
-    config.set('Input Output', 'raw_audio_path', './training_data/raw_audio_fixed.pkl')
-    config.set('Input Output', 'processed_audio_path', '')
-    config.set('Input Output', 'templates_path', './training_data/templates.pkl')
-    config.set('Input Output', 'data2array_verts_path', './training_data/subj_seq_to_idx.pkl')
+    config.set('Input Output', 'verts_mmaps_path', 'projects/dataset/voca/data_verts.npy')
+    config.set('Input Output', 'raw_audio_path', 'projects/dataset/voca/raw_audio_fixed.pkl')
+    config.set('Input Output', 'processed_audio_path', 'projects/dataset/voca/processed_audio_deepspeech.pkl')
+    config.set('Input Output', 'templates_path', 'projects/dataset/voca/templates.pkl')
+    config.set('Input Output', 'data2array_verts_path', 'projects/dataset/voca/subj_seq_to_idx.pkl')
 
     #Audio paramters
     config.add_section('Audio Parameters')

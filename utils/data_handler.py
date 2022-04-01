@@ -167,11 +167,11 @@ class DataHandler:
         return processed_audio, face_vertices, face_templates, subject_idx
 
     def _load_data(self, config):
-        face_verts_mmaps_path = load_from_config(config, 'verts_mmaps_path')
-        face_templates_path = load_from_config(config, 'templates_path')
-        raw_audio_path = load_from_config(config, 'raw_audio_path')
-        processed_audio_path = load_from_config(config, 'processed_audio_path')
-        data2array_verts_path = load_from_config(config, 'data2array_verts_path')
+        face_verts_mmaps_path = os.path.join(os.getenv('HOME'), load_from_config(config, 'verts_mmaps_path'))
+        face_templates_path = os.path.join(os.getenv('HOME'),load_from_config(config, 'templates_path'))
+        raw_audio_path = os.path.join(os.getenv('HOME'),load_from_config(config, 'raw_audio_path'))
+        processed_audio_path = os.path.join(os.getenv('HOME'),load_from_config(config, 'processed_audio_path'))
+        data2array_verts_path = os.path.join(os.getenv('HOME'),load_from_config(config, 'data2array_verts_path'))
 
         print("Loading face vertices")
         self.face_vert_mmap = np.load(face_verts_mmaps_path, mmap_mode='r')
@@ -183,9 +183,12 @@ class DataHandler:
         self.raw_audio = pickle.load(open(raw_audio_path, 'rb'), encoding='latin1')
 
         print("Process audio")
+        print("Processed audio path", processed_audio_path)
         if os.path.exists(processed_audio_path):
+            print("Using processed audio")
             self.processed_audio = pickle.load(open(processed_audio_path, 'rb'), encoding='latin1')
         else:
+            print("Processed audio doesnt exists")
             self.processed_audio =  self._process_audio(self.raw_audio)
             if processed_audio_path != '':
                 pickle.dump(self.processed_audio, open(processed_audio_path, 'wb'))

@@ -18,6 +18,7 @@ For comments or questions, please email us at voca@tue.mpg.de
 import numpy as np
 import tensorflow as tf
 from utils.ops import fc_layer
+import os
 
 class ExpressionLayer:
     def __init__(self, config, scope='ExpressionLayer'):
@@ -34,7 +35,8 @@ class ExpressionLayer:
             init_exp_basis = np.zeros((3*self.num_vertices, self.expression_dim))
 
             if self.init_expression:
-                init_exp_basis[:, :min(self.expression_dim, 100)] = np.load(self.expression_basis_fname)[:, :min(self.expression_dim, 100)]
+                init_exprs_file = os.path.join(os.getenv('HOME'), self.expression_basis_fname)
+                init_exp_basis[:, :min(self.expression_dim, 100)] = np.load(init_exprs_file)[:, :min(self.expression_dim, 100)]
 
             with tf.name_scope('expression_offset'):
                 exp_offset = fc_layer(parameters,
