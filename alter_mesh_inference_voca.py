@@ -146,8 +146,16 @@ class Alter_shape_identity():
         """
 
         org_predicted_vertices = np.stack(meshes_for_sequence, axis=0)
-        offsets = org_predicted_vertices - self.template.v
-        predictd_vertices_w_template = self.templates_data[subj_name] + offsets
+        offsets = org_predicted_vertices - np.expand_dims(self.template.v, axis=0)
+
+        current_template = np.expand_dims(self.templates_data[subj_name], axis=0)
+        # current_template = np.expand_dims(self.template.v, axis=0)
+
+        current_template = np.repeat(current_template, org_predicted_vertices.shape[0], axis=0)
+        predictd_vertices_w_template = current_template + offsets
+
+        # offsets = org_predicted_vertices - self.template.v
+        # predictd_vertices_w_template = self.templates_data[subj_name] + offsets
 
         # remove the old template
         out_mesh_path = os.path.join(out_path, "meshes_w_identity")
@@ -157,7 +165,7 @@ class Alter_shape_identity():
         os.makedirs(out_vid_path, exist_ok=True)
 
 
-        output_sequence_meshes(predictd_vertices_w_template, self.template, out_mesh_path)
+        # output_sequence_meshes(predictd_vertices_w_template, self.template, out_mesh_path)
         self.render_sequence_meshes(audio_fname, predictd_vertices_w_template, self.template, out_vid_path, uv_template_fname, texture_img_fname, out_file_name)
 
     def render_sequence_meshes(self, audio_fname, sequence_vertices, template, out_path, 
@@ -254,6 +262,7 @@ if __name__ == "__main__":
 
         # load the all the files in the seq dir
         all_files = os.listdir(os.path.join(input_meshes_paths, seq_dir, "meshes"))
+        all_files = sorted(all_files)
         # load all the obj vertices in the seq dir
         all_vertices = [Mesh(filename=os.path.join(input_meshes_paths, seq_dir, "meshes", file)).v for file in all_files]
 
