@@ -214,8 +214,7 @@ def str2bool(val):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Voice operated character animation')
-    parser.add_argument('--mesh_path', default='./model/gstep_52280.model', help='Path to trained VOCA model')
-    parser.add_argument('--out_path', default='./pretrained_model', help='Path to store')
+    parser.add_argument('--model_path', default='./pretrained_model', help='Path to store')
 
     parser.add_argument('--template_fname', default='./template/FLAME_sample.ply', help='Path of "zero pose" template mesh in" FLAME topology to be animated')
     parser.add_argument('--all_user_templates_path', default='./projects/dataset/voca/templates.pkl', help='Path of "zero pose" template mesh in" FLAME topology to be animated')
@@ -224,18 +223,18 @@ if __name__ == "__main__":
     parser.add_argument('--texture_img_fname', default='', help='Path of the texture image')
 
     args = parser.parse_args()
-    out_path = args.out_path
+    model_path = args.model_path
 
     uv_template_fname = args.uv_template_fname
     texture_img_fname = args.texture_img_fname
 
     print("\n\n\n")
-    print("out_path", out_path)
+    print("model_path", model_path)
     print("all configs", args)
     print("\n\n\n")
 
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
 
     # load all the files in the audio
     audio_root_path = os.path.join(os.getenv("HOME"), "projects/dataset/voca/audio/")
@@ -245,7 +244,7 @@ if __name__ == "__main__":
     shape_alter = Alter_shape_identity(all_user_templates_path,
                                        template_fname)
 
-    input_meshes_paths = os.path.join(out_path, "meshes")
+    input_meshes_paths = os.path.join(model_path, "meshes")
 
     a = os.listdir(input_meshes_paths)
 
@@ -272,5 +271,5 @@ if __name__ == "__main__":
         shape_alter.inference( subj,
                     audio_fname,
                     all_vertices,
-                    out_path,
+                    model_path,
                     out_file_name)
