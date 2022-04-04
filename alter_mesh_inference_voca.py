@@ -31,6 +31,7 @@ from utils.rendering import render_mesh_helper
 import argparse
 from tqdm import tqdm
 from util_flame_render import Facerender
+import pickle
 
 def process_audio(ds_path, audio, sample_rate):
     config = {}
@@ -109,74 +110,55 @@ def render_sequence_meshes(audio_fname, sequence_vertices, template, out_path,
     print("seq completed")
     print()
 
-class Inference_voca():
+class Alter_shape_identity():
 
-    def __init__(self, tf_model_fname, ds_fname) -> None:
+    def __init__(self, all_user_templates,
+                 default_template_fname) -> None:
 
         # Load previously saved meta graph in the default graph
-        self.tf_model_fname = tf_model_fname
-        self.saver = tf.train.import_meta_graph(tf_model_fname + '.meta')
-        self.graph = tf.get_default_graph()
-
-        # load the models componets
-        self.speech_features = self.graph.get_tensor_by_name(u'VOCA/Inputs_encoder/speech_features:0')
-        self.condition_subject_id = self.graph.get_tensor_by_name(u'VOCA/Inputs_encoder/condition_subject_id:0')
-        self.is_training = self.graph.get_tensor_by_name(u'VOCA/Inputs_encoder/is_training:0')
-        self.input_template = self.graph.get_tensor_by_name(u'VOCA/Inputs_decoder/template_placeholder:0')
-        self.output_decoder = self.graph.get_tensor_by_name(u'VOCA/output_decoder:0')
-
-        # deepspeech handler
-        config = {}
-        config['deepspeech_graph_fname'] = ds_fname
-        config['audio_feature_type'] = 'deepspeech'
-        config['num_audio_features'] = 29
-
-        config['audio_window_size'] = 16
-        config['audio_window_stride'] = 1
-
-        # create the audio handler        
-        self.audio_handler = AudioHandler(config)
-        # 
         self.face_render = Facerender()
- 
-    def process_audio(self, audio, sample_rate):
-        tmp_audio = {'subj': {'seq': {'audio': audio, 'sample_rate': sample_rate}}}
-        return self.audio_handler.process(tmp_audio)['subj']['seq']['audio']
+        self.templates_data = pickle.load(open(all_user_templates, 'rb'), encoding='latin1')
+        self.template_conditional_subjects = list(self.templates_data.keys())
 
-    def inference(self, 
-                    audio_fname, template_fname, 
-                    condition_idx, 
-                    out_path, out_file_name,
-                    render_sequence=True, 
-                    uv_template_fname='', texture_img_fname=''):
-        template = Mesh(filename=template_fname)
+        #
+        self.template = Mesh(filename=default_template_fname)
 
-        sample_rate, audio = wavfile.read(audio_fname)
-        if audio.ndim != 1:
-            print('Audio has multiple channels, only first channel is considered')
-            audio = audio[:,0]
 
-        processed_audio = self.process_audio(audio, sample_rate)
-        num_frames = processed_audio.shape[0]
+    def inference(self,
+                    subj_name,
+                    audio_fname,
+                    meshes_for_sequence,
+                    out_path,
+                    out_file_name,
+                    uv_template_fname='',
+                    texture_img_fname=''):
+        """
+        Function is used to remove the default template from the result meshes without shape params
+        and add the used specfic template on all the meshes in the seqUence and render them with condition
 
-        out_mesh_path = os.path.join(out_path, "meshes", out_file_name)
+        :param audio_fname:
+        :param template_fname:
+        :param out_path:
+        :param out_file_name:
+        :param uv_template_fname:
+        :param texture_img_fname:
+        :return:
+        """
+
+        org_predicted_vertices = np.stack(meshes_for_sequence, axis=0)
+        offsets = org_predicted_vertices - self.template.v
+        predictd_vertices_w_template = self.templates_data[subj_name] + offsets
+
+        # remove the old template
+        out_mesh_path = os.path.join(out_path, "meshes_w_identity")
         os.makedirs(out_mesh_path, exist_ok=True)
-        out_vid_path = os.path.join(out_path, "videos")
 
-        with tf.Session() as session:
-            # Restore trained model
-            self.saver.restore(session, self.tf_model_fname)
-            
-            feed_dict = {self.speech_features: np.expand_dims(np.stack(processed_audio), -1),
-                self.condition_subject_id: np.repeat(condition_idx-1, num_frames),
-                self.is_training: False,
-                self.input_template: np.repeat(template.v[np.newaxis, :, :, np.newaxis], num_frames, axis=0)}
+        out_vid_path = os.path.join(out_path, "videos_w_identity")
+        os.makedirs(out_vid_path, exist_ok=True)
 
-            predicted_vertices = np.squeeze(session.run(self.output_decoder, feed_dict))
-            output_sequence_meshes(predicted_vertices, template, out_mesh_path)
-            if(render_sequence):
-                self.render_sequence_meshes(audio_fname, predicted_vertices, template, out_vid_path, uv_template_fname, texture_img_fname, out_file_name)
-        # tf.reset_default_graph()
+
+        output_sequence_meshes(predictd_vertices_w_template, self.template, out_mesh_path)
+        self.render_sequence_meshes(audio_fname, predictd_vertices_w_template, self.template, out_vid_path, uv_template_fname, texture_img_fname, out_file_name)
 
     def render_sequence_meshes(self, audio_fname, sequence_vertices, template, out_path, 
                         uv_template_fname='', texture_img_fname='', 
@@ -220,46 +202,6 @@ class Inference_voca():
         print("seq completed")
         print()
 
-    def inference_interpolate_styles(self, tf_model_fname, ds_fname, audio_fname, template_fname, condition_weights, out_path):
-        template = Mesh(filename=template_fname)
-
-        sample_rate, audio = wavfile.read(audio_fname)
-        if audio.ndim != 1:
-            print('Audio has multiple channels, only first channel is considered')
-            audio = audio[:, 0]
-
-        processed_audio = process_audio(ds_fname, audio, sample_rate)
-
-        # Load previously saved meta graph in the default graph
-        saver = tf.train.import_meta_graph(tf_model_fname + '.meta')
-        graph = tf.get_default_graph()
-
-        speech_features = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/speech_features:0')
-        condition_subject_id = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/condition_subject_id:0')
-        is_training = graph.get_tensor_by_name(u'VOCA/Inputs_encoder/is_training:0')
-        input_template = graph.get_tensor_by_name(u'VOCA/Inputs_decoder/template_placeholder:0')
-        output_decoder = graph.get_tensor_by_name(u'VOCA/output_decoder:0')
-
-        non_zeros = np.where(condition_weights > 0.0)[0]
-        condition_weights[non_zeros] /= sum(condition_weights[non_zeros])
-
-        num_frames = processed_audio.shape[0]
-        output_vertices = np.zeros((num_frames, template.v.shape[0], template.v.shape[1]))
-
-        with tf.Session() as session:
-            # Restore trained model
-            saver.restore(session, tf_model_fname)
-
-            for condition_id in non_zeros:
-                feed_dict = {speech_features: np.expand_dims(np.stack(processed_audio), -1),
-                            condition_subject_id: np.repeat(condition_id, num_frames),
-                            is_training: False,
-                            input_template: np.repeat(template.v[np.newaxis, :, :, np.newaxis], num_frames, axis=0)}
-                predicted_vertices = np.squeeze(session.run(output_decoder, feed_dict))
-                output_vertices += condition_weights[condition_id] * predicted_vertices
-
-            output_sequence_meshes(output_vertices, template, out_path)
-
 def str2bool(val):
     if isinstance(val, bool):
         return val
@@ -272,25 +214,22 @@ def str2bool(val):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Voice operated character animation')
-    parser.add_argument('--tf_model_fname', default='./model/gstep_52280.model', help='Path to trained VOCA model')
-    parser.add_argument('--ds_fname', default='./ds_graph/output_graph.pb', help='Path to trained DeepSpeech model')
-    parser.add_argument('--template_fname', default='./template/FLAME_sample.ply', help='Path of "zero pose" template mesh in" FLAME topology to be animated')
-    parser.add_argument('--uv_template_fname', default='', help='Path of a FLAME template with UV coordinates')
-    parser.add_argument('--texture_img_fname', default='', help='Path of the texture image')
-    parser.add_argument('--visualize', default='True', help='Visualize animation')
+    parser.add_argument('--mesh_path', default='./model/gstep_52280.model', help='Path to trained VOCA model')
     parser.add_argument('--out_path', default='./pretrained_model', help='Path to store')
 
+    parser.add_argument('--template_fname', default='./template/FLAME_sample.ply', help='Path of "zero pose" template mesh in" FLAME topology to be animated')
+    parser.add_argument('--all_user_templates_path', default='./projects/dataset/voca/templates.pkl', help='Path of "zero pose" template mesh in" FLAME topology to be animated')
+
+    parser.add_argument('--uv_template_fname', default='', help='Path of a FLAME template with UV coordinates')
+    parser.add_argument('--texture_img_fname', default='', help='Path of the texture image')
+
     args = parser.parse_args()
-    tf_model_fname = args.tf_model_fname
-    ds_fname = args.ds_fname
-    template_fname = args.template_fname
     out_path = args.out_path
 
     uv_template_fname = args.uv_template_fname
     texture_img_fname = args.texture_img_fname
 
     print("\n\n\n")
-    print("using model", tf_model_fname)
     print("out_path", out_path)
     print("all configs", args)
     print("\n\n\n")
@@ -300,40 +239,38 @@ if __name__ == "__main__":
 
     # load all the files in the audio
     audio_root_path = os.path.join(os.getenv("HOME"), "projects/dataset/voca/audio/")
-    
-    conditional_identities = [1, 2, 3, 4, 5, 6, 7, 8]
-    # faceformer uses identity 5
-    # voca uses default 3 
-    # 1 is the standard used for training
 
-    # subjects = ["FaceTalk_170811_03275_TA", "FaceTalk_170908_03277_TA","FaceTalk_170809_00138_TA", "FaceTalk_170731_00024_TA", "FaceTalk_170728_03272_TA"]
-    test_subjects = [ "FaceTalk_170731_00024_TA", "FaceTalk_170809_00138_TA"]
+    template_fname = args.template_fname
+    all_user_templates_path = os.path.join(os.getenv("HOME"), args.all_user_templates_path)
+    shape_alter = Alter_shape_identity(all_user_templates_path,
+                                       template_fname)
 
-    # test subjects to be rendered out
-    subjects =  test_subjects
-    sentence_to_inference = ["sentence%d.wav"%i for i in range(21, 40)]
-    inferencer = Inference_voca(tf_model_fname, ds_fname)
+    input_meshes_paths = os.path.join(out_path, "meshes")
 
-    out_mesh_path = os.path.join(out_path, "meshes")
-    os.makedirs(out_mesh_path, exist_ok=True)
+    a = os.listdir(input_meshes_paths)
 
-    out_vid_path = os.path.join(out_path, "videos")
-    os.makedirs(out_vid_path, exist_ok=True)
+    for seq_dir in os.listdir(input_meshes_paths):
 
-    for cond in conditional_identities:
-        for sen in sentence_to_inference:
-            for subj in subjects:
-                print("\n\nInferencing condition: %d, sentence %s, subj %s"%(cond, sen, subj) )
-                audio_fname = os.path.join(audio_root_path, subj, sen)
-                print("Currrent audio file", audio_fname)
+        print("Running on sequenence", seq_dir)
 
-                # create the outfile
-                out_file_name = "%s_%s_cond_%d"%(subj, sen[:-4],cond)
-                print("out_file_name", out_file_name)
+        # load the all the files in the seq dir
+        all_files = os.listdir(os.path.join(input_meshes_paths, seq_dir, "meshes"))
+        # load all the obj vertices in the seq dir
+        all_vertices = [Mesh(filename=os.path.join(input_meshes_paths, seq_dir, "meshes", file)).v for file in all_files]
 
-                inferencer.inference(
-                    audio_fname, template_fname, 
-                    cond, 
-                    out_path, out_file_name,
-                    str2bool(args.visualize), 
-                    uv_template_fname, texture_img_fname)
+        b = seq_dir.split("_")
+        subj = "_".join(b[:4])
+        sen = "_".join(b[4:5])
+        cond = int(b[-1])
+        current_condition = shape_alter.template_conditional_subjects[cond]
+
+        # create the referencing files
+        out_file_name = subj + "_" + sen + "_" + current_condition
+        audio_fname = os.path.join(audio_root_path, subj, sen+".wav")
+
+        #
+        shape_alter.inference( subj,
+                    audio_fname,
+                    all_vertices,
+                    out_path,
+                    out_file_name)
